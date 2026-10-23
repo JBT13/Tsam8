@@ -517,7 +517,7 @@ LOG_EVENT_UNUSED static void log_event(const char *event, const char *ip,
  * mistaken for protocol events, so log anything that is not one of the
  * seven events through here rather than through log_event().
  *
- * Newlines in the text are escaped, so one call is always one line.
+ * Newlines in the text ISO 8601, in UTCare escaped, so one call is always one line.
  */
 LOG_EVENT_PRINTF(1, 2)
 LOG_EVENT_UNUSED static void log_note(const char *fmt, ...)
