@@ -39,14 +39,22 @@ struct client {
     
 };
 
+struct server {
+    int server_socket;
+    std::string group_id;
+    int server_ip;
+    int server_port;
+};
 //structure that keeps track of the clients inbox
 struct message {
     std::vector<std::string> msg_from;
     std::vector<std::string> message_box;
 };
 
+//keeping track of different information for both connected servers and client
 std::map<int, client> clients; //the key is the clients socket number
 std::map<std::string, message> clients_msgbox; //the key is the clients udername
+std::map<int, server> servers; //the key is the server socket number
 
 // "Human-readable time" log
 std::string timestamp(){
@@ -244,7 +252,7 @@ void proc_command(int sock, const std::string &command){
         return;
     }
     
-    if (tokens[0] == "CONNECT"){
+    if (tokens[0] == "HALO"){
         
         if (tokens.size() < 2){
             write_serverlog("Error CONNECT invalid command");
@@ -252,7 +260,7 @@ void proc_command(int sock, const std::string &command){
             return;
         }
 
-        std::string username = tokens[0];
+        std::string username = tokens[1];
 
         //checking if a user is already connected to a socket
         if (!clients[sock].name.empty()){
@@ -477,7 +485,7 @@ int main(int argc, char* argv[]){
     
 
     std::vector<struct pollfd> fds; //vector for poll() to keep track of the clients
-   
+
 
     struct sockaddr_in client_addr; //for setting up client connection 
     socklen_t client_len;
@@ -500,6 +508,7 @@ int main(int argc, char* argv[]){
     }
 
     write_serverlog("Listening socket up");
+
     if (listen(listen_sock, BACKLOG) < 0){
         perror("listen failed");
         write_serverlog("Error listening failed");
