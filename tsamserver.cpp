@@ -80,24 +80,6 @@ std::string timestamp(){
     return std::string(ts);
 }
 
-void write_serverlog(std::string message){
-
-    //opening server.log in append mode
-    std::ofstream log_file("server.log", std::ios::app);
-
-    //error checking
-    if (!log_file.is_open()){
-        std::cerr << "Error: Could not open the log file!" << std::endl;
-        return;
-    }
-    std::string line = timestamp() + message;
-    
-    //writing into to the server log with time and message
-    log_file << line << std::endl;
-    log_file.close();
-    
-}
-
 int open_socket(int port){
     struct sockaddr_in sk_addr;   // address settings for bind()
     int sock;                     // socket opened for this port
@@ -109,14 +91,12 @@ int open_socket(int port){
     //error handling
     if (sock < 0){
         perror("error opening socket");
-        write_serverlog("Error opening the socket");
         return(-1);
     }
 
     //allows the socket to be reused after the server is closed 
     if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &set, sizeof(set)) < 0){
         perror("Failed to set SO_REUSEADDR:");
-        write_serverlog("Error could not set sockopt");
         close(sock);
         return(-1);
     }
@@ -130,7 +110,7 @@ int open_socket(int port){
     //binding the socket and listen for connection from the client
     if (bind(sock, (struct sockaddr *)&sk_addr, sizeof(sk_addr)) < 0){
         perror("Failed to bind to socket:");
-        write_serverlog("Error could not bind socket");
+        ("Error could not bind socket");
         close(sock);
         return(-1);
     }
@@ -195,7 +175,7 @@ void send_get_msg(int sock){
         msgbox[username].message_box = message;
         msgbox[username].msg_from = from;
 
-        write_serverlog(username + " got message");
+        (username + " got message");
     }
     else{
         //message for a client that has no messages 
@@ -269,15 +249,6 @@ void send_servers(int sock){
     connections[sock].send_buffer.append(buffer.data(), buffer.size());
 }
 
-void send_helo(int sock){
-    std::string group_name = GROUP_ID;
-    std::string helo_msg = "HELO," + group_name;
-    
-    auto buffer = create_msg(helo_msg);
-    connections[sock].send_buffer.append(buffer.data(), buffer.size());
-    send_servers(sock);
-}
-
 void proc_command(int sock, std::vector<std::string> tokens){
     std::string send_to;
     std::string from;
@@ -311,7 +282,6 @@ void proc_command(int sock, std::vector<std::string> tokens){
     else if (tokens[0] == "SENDMSG"){  //TODO: ath hvort það sé til okkar group þá setja í client message box annars áfram senda:
         //extracting appropriate fields from tokens
         if (tokens.size() < 4){
-            write_serverlog("Error SENDMSG invalid command");
             error_msg = "invalid command for SENDMSG";
             send_error(sock, error_msg);
             return;
@@ -323,7 +293,6 @@ void proc_command(int sock, std::vector<std::string> tokens){
         //client must connect as a user before sending a message
         if (connections[sock].group_id.empty()){
             error_msg = "must connect as a user before";
-            write_serverlog("Error SENDMSG user is not connected");
             send_error(sock, error_msg);
             return;
         }
@@ -331,7 +300,6 @@ void proc_command(int sock, std::vector<std::string> tokens){
         //connected user does not match the from user in the command
         if (connections[sock].group_id != from){
             error_msg = "sender does not match connected user";
-            write_serverlog("Error SENDMSG sender does not match connected user");
             send_error(sock, error_msg);
             return;
         }
@@ -345,7 +313,6 @@ void proc_command(int sock, std::vector<std::string> tokens){
 
         //sending confirmation to the user that their message was sent 
         std::string msg_confirmation = "message sent";
-        write_serverlog(from + " sent a message to: " + send_to); 
         send_confirmation(sock, msg_confirmation);
         }
         
@@ -355,7 +322,6 @@ void proc_command(int sock, std::vector<std::string> tokens){
         //client must connect as a user before sending a message
         if (connections[sock].group_id.empty()){
             error_msg = "must connect as a user before";
-            write_serverlog("Error GETMSG user is not connected");
             send_error(sock, error_msg);
             return;
         }
@@ -363,7 +329,6 @@ void proc_command(int sock, std::vector<std::string> tokens){
         //names do not match
         if (connections[sock].group_id != from){
             error_msg = "requested user does not match connected user";
-            write_serverlog("Error GETMSG requested user does not match connected user");
             send_error(sock, error_msg);
             return;
         }  
@@ -372,7 +337,7 @@ void proc_command(int sock, std::vector<std::string> tokens){
     }
 
     else if(tokens[0] == "STATUSREQ"){
-        write_serverlog("STATUSREQ sent to: " + connections[sock].group_id);
+        ("STATUSREQ sent to: " + connections[sock].group_id);
         send_statusreq(sock);
  
     }
@@ -381,7 +346,6 @@ void proc_command(int sock, std::vector<std::string> tokens){
     else{
         std::cout << "Unknown command from client" << std::endl;
         error_msg = "Unknown command\nValid commands: CONNECT, SENDMSG, GETMSG, STATUSREQ"; //TODO: LAGA ÞETTA
-        write_serverlog("Error unknown command");
         send_error(sock, error_msg);
         return;
     }
@@ -409,7 +373,7 @@ void first_command(int sock, std::vector<std::string> tokens){
         }
 
         if (tokens.size() < 2){
-            write_serverlog("Error CONNECT invalid command");
+            ("Error CONNECT invalid command");
             error_msg = "invalid command for CONNECT";
             send_error(sock, error_msg);
             return;
@@ -425,7 +389,6 @@ void first_command(int sock, std::vector<std::string> tokens){
         else{
         std::cout << "Unknown command" << std::endl;
         error_msg = "Unknown command";
-        write_serverlog("Error unknown command");
         send_error(sock, error_msg);
         return;
         }
@@ -435,7 +398,7 @@ void first_command(int sock, std::vector<std::string> tokens){
         client_connected = true;
         std::cout << GROUP_ID <<" connected to socket: " << sock << std::endl;
         std::string msg_confirmation = "Successfully connected"; //reporting to client that the connection was succesful
-        write_serverlog(tokens[1] + " connected to server");
+        (tokens[1] + " connected to server");
         send_confirmation(sock, msg_confirmation);
         return;
     }
@@ -455,7 +418,7 @@ void client_command(int sock){
 
 
         if (data[0] != 0x01 || data[3] != 0x02){
-            write_serverlog("Error invalid frame");
+            ("Error invalid frame");
             return;
         }
 
@@ -468,7 +431,7 @@ void client_command(int sock){
 
         //the frame includes 5 bytes
         if (frame_length < 5){
-            write_serverlog("Error invalid frame length");
+            ("Error invalid frame length");
             return;
         }
 
@@ -477,7 +440,7 @@ void client_command(int sock){
         }
 
         if (data[frame_length - 1] != 0x03){
-            write_serverlog("Error invalid frame");
+            ("Error invalid frame");
             return;
         }
         //extracting the command starting at byte 4 and excluding the 5 framing bytes
@@ -527,7 +490,7 @@ void handle_client_data(std::vector<struct pollfd> &fds){
                 if (connections[sock].type == "CLIENT"){
                     client_connected = false;
                 }
-                write_serverlog(connections[sock].group_id + " Disconnected");
+                (connections[sock].group_id + " Disconnected");
                 close(sock);
                 server_net.erase(connections[sock].group_id);
                 connections.erase(sock);
@@ -555,7 +518,7 @@ void handle_client_data(std::vector<struct pollfd> &fds){
                     if (connections[sock].type == "CLIENT"){
                         client_connected = false;
                     }
-                    write_serverlog(connections[sock].group_id + " Disconnected");
+                    (connections[sock].group_id + " Disconnected");
                     close(sock);
                     handshake.erase(sock);
                     server_net.erase(connections[sock].group_id);
@@ -595,11 +558,10 @@ int main(int argc, char* argv[]){
         exit(1);
     }
 
-    write_serverlog("Listening socket up");
+    ("Listening socket up");
 
     if (listen(listen_sock, BACKLOG) < 0){
         perror("listen failed");
-        write_serverlog("Error listening failed");
         close(listen_sock);
         exit(1);
     }
@@ -629,7 +591,6 @@ int main(int argc, char* argv[]){
         //stopping the loop if poll returns an error
         if(n < 0){
             perror("poll failed");
-            write_serverlog("Error poll failed");
             finished = true;
             break;
         }
@@ -644,7 +605,6 @@ int main(int argc, char* argv[]){
             }
             else{
                 fds.push_back({sock_acc, POLLIN, 0}); //adding the socket to fds vector
-                write_serverlog("New client accepted");
                 std::string ip_addr = inet_ntoa(dest_addr.sin_addr); //converting the ip address to string
                 int port = ntohs(dest_addr.sin_port);
                 connections[sock_acc].server_ip = ip_addr;
