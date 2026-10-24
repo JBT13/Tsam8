@@ -32,8 +32,8 @@
 #define BACKLOG  5
 //structure that stores information about/for client
 //TODO: 
-//ef ég fæ sendmsg senda á alla server sem ég er connected to 
-//þótt það sé frá client eða öðrum server
+//ef ég fæ sendmsg senda á alla server sem ég er (connected to 
+//þótt það sé frá client eða öðrum server)
 //Finna út hvernig ég á að sjá mun á server og client 
 //Hversu margir clients
 //TODO: 24.10
@@ -587,6 +587,8 @@ int main(int argc, char* argv[]){
     }
     else{
         fds.push_back({listen_sock, POLLIN, 0}); //listening socket at index 0 in the list
+        std::string curr_time = timestamp();
+        log_event("START",NULL,0,GROUP_ID,"Listening on port " + port);
     }
 
     struct sockaddr_in dest_addr; //for setting up connection to server or client
@@ -655,6 +657,7 @@ int main(int argc, char* argv[]){
                 connections[sock_acc].server_ip = ip_addr;
                 connections[sock_acc].server_port = port;
                 handshake[sock_acc] = false;
+                log_event("ACCEPT", ip_addr.c_str(), port, NULL, "incoming connection" );
                 }
             }
         handle_client_data(fds); //processing client data
