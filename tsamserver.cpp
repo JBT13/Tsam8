@@ -566,7 +566,7 @@ int main(int argc, char* argv[]){
         exit(1);
     }
 
-    ("Listening socket up");
+    
 
     if (listen(listen_sock, BACKLOG) < 0){
         perror("listen failed");
