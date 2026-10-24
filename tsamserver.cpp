@@ -16,6 +16,7 @@
 #include <list>
 #include <poll.h>
 
+
 #include <iostream>
 #include <sstream>
 #include <thread>
@@ -41,7 +42,7 @@
 struct connected{
     std::string group_id;
     int socket;
-    int server_ip;
+    std::string server_ip;
     int server_port;
     const std::string type;
     std::string receive_buffer;
@@ -62,11 +63,14 @@ struct server_list{
 };
 
 //keeping track of different information for both connected servers and client
+//ef server listi með 8 þá sleppa
 std::map<std::string, message> msgbox; //the key is the clients udername
 std::map<int, connected> connections; //the key is the server socket number
 std::map <std::string, std::vector<struct server_list>> server_net; //map where it connects a group to it's connected servers
 std::map <int, bool> handshake; //keeping track of after accept to be able to complete protocol with server
 bool client_connected;
+
+
 // "Human-readable time" log
 std::string timestamp(){
     time_t current_t = time(nullptr);
@@ -256,7 +260,7 @@ void send_servers(int sock){
         if (!connected_servers.empty()){
             connected_servers += ",";
         }
-        connected_servers += servers.group_id + "," + std::to_string(servers.server_ip) + "," + std::to_string(servers.server_port);
+        connected_servers += servers.group_id + "," + servers.server_ip + "," + std::to_string(servers.server_port);
     }
 
     auto buffer = create_msg(connected_servers);
@@ -280,12 +284,16 @@ void proc_command(int sock, std::vector<std::string> tokens){
         //TODO: prenta og server loga listann
         tokens.erase(tokens.begin());
         int n = tokens.size();
-        //TODO: ath n modulud 3?
+        //TODO: ath n modulus 3?
         while (n > 0){
             std::string group_id = tokens[0];
             int group_ip = std::stoi(tokens[1]);
             int group_port = std::stoi(tokens[2]);
             server_net[main_connection].push_back({group_id, group_ip, group_port});
+            //mjög ljótur kóði
+            tokens.erase(tokens.begin());
+            tokens.erase(tokens.begin());
+            tokens.erase(tokens.begin());
             n -= 3;
         }
     }
@@ -343,7 +351,7 @@ void proc_command(int sock, std::vector<std::string> tokens){
         }
          
         //names do not match
-        if (connections[sock].name != from){
+        if (connections[sock].group_id != from){
             error_msg = "requested user does not match connected user";
             write_serverlog("Error GETMSG requested user does not match connected user");
             send_error(sock, error_msg);
@@ -378,7 +386,7 @@ void first_command(int sock, std::vector<std::string> tokens){
     }
 
     if (tokens[0] == "HELO"){
-        connections[sock].group_id = tokens[0];
+        connections[sock].group_id = tokens[1];
         connections[sock].type == "SEVER";
         handshake[sock] = true;
         send_servers(sock);
@@ -553,9 +561,6 @@ void handle_client_data(std::vector<struct pollfd> &fds){
     }
 }
 
-
-
-
 int main(int argc, char* argv[]){
     bool finished = false; //For the while loop
     int listen_sock;   // Socket for connections to server
@@ -592,6 +597,8 @@ int main(int argc, char* argv[]){
         fds.push_back({listen_sock, POLLIN, 0}); //listening socket at index 0 in the list
     }
 
+    struct sockaddr_in dest_addr; //for setting up connection to server or client
+    socklen_t dest_len;
     
     while (!finished){
         //iterating through the client sockets, skipping the listening socket
@@ -600,7 +607,7 @@ int main(int argc, char* argv[]){
             fds[i].events = POLLIN; //poll lets know when data is available to read for that client
             
             //if the buffer did not send all at once trigger pollout to send the rest of the buffer
-            if (!clients[sock].send_buffer.empty()){ 
+            if (!connections[sock].send_buffer.empty()){ 
                 fds[i].events |= POLLOUT;
             }
         }
@@ -619,22 +626,22 @@ int main(int argc, char* argv[]){
 
         //checking if the listening socket has clients ready to connect
         if (fds[0].revents & POLLIN){
-            
+            dest_len = sizeof(dest_addr);
 
-            sock_acc = accept(listen_sock, nullptr, nullptr);
+            sock_acc = accept(listen_sock,  (struct sockaddr *)&dest_addr, &dest_len);
             if (sock_acc < 0){
                 perror("accept failed");
             }
             else{
                 fds.push_back({sock_acc, POLLIN, 0}); //adding the socket to fds vector
                 write_serverlog("New client accepted");
+                std::string ip_addr = inet_ntoa(dest_addr.sin_addr); //converting the ip address to string
+                int port = ntohs(dest_addr.sin_port);
+                connections[sock_acc].server_ip = ip_addr;
+                connections[sock_acc].server_port = port;
                 handshake[sock_acc] = false;
-                //TODO: hafa HELO hér?
                 }
             }
         handle_client_data(fds); //processing client data
     }
 }
-
-
-
