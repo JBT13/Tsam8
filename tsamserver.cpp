@@ -248,6 +248,14 @@ void send_servers(int sock){
     //appending the buffer to the connection struct
     connections[sock].send_buffer.append(buffer.data(), buffer.size());
 }
+void send_helo(int sock){
+    std::string group_name = GROUP_ID;
+    std::string helo_msg = "HELO," + group_name;
+    
+    auto buffer = create_msg(helo_msg);
+    connections[sock].send_buffer.append(buffer.data(), buffer.size());
+    send_servers(sock);
+}
 
 void proc_command(int sock, std::vector<std::string> tokens){
     std::string send_to;
@@ -558,7 +566,7 @@ int main(int argc, char* argv[]){
         exit(1);
     }
 
-    ("Listening socket up");
+    
 
     if (listen(listen_sock, BACKLOG) < 0){
         perror("listen failed");
