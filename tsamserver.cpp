@@ -268,6 +268,15 @@ void send_servers(int sock){
     connections[sock].send_buffer.append(buffer.data(), buffer.size());
 }
 
+void send_helo(int sock){
+    std::string group_name = GROUP_ID;
+    std::string helo_msg = "HELO," + group_name;
+    
+    auto buffer = create_msg(helo_msg);
+    connections[sock].send_buffer.append(buffer.data(), buffer.size());
+    send_servers(sock);
+}
+
 void proc_command(int sock, std::vector<std::string> tokens){
     std::string send_to;
     std::string from;
