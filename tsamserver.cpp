@@ -15,7 +15,7 @@
 #include <vector>
 #include <list>
 #include <poll.h>
-#include <log_event.h> 
+#include "log_event.h"
 
 
 #include <iostream>
@@ -27,7 +27,7 @@
 #include <ctime>
 #include <iomanip>
 #include <unistd.h>
-#include <identity.h>
+#include "identity.h"
 
 #define BACKLOG  5
 //structure that stores information about/for client
@@ -45,7 +45,7 @@ struct connected{
     int socket;
     std::string server_ip;
     int server_port;
-    const std::string type;
+    std::string type;
     std::string receive_buffer;
     std::string send_buffer;
 };
@@ -110,7 +110,6 @@ int open_socket(int port){
     //binding the socket and listen for connection from the client
     if (bind(sock, (struct sockaddr *)&sk_addr, sizeof(sk_addr)) < 0){
         perror("Failed to bind to socket:");
-        ("Error could not bind socket");
         close(sock);
         return(-1);
     }
@@ -369,19 +368,18 @@ void first_command(int sock, std::vector<std::string> tokens){
 
     if (tokens[0] == "HELO"){
         connections[sock].group_id = tokens[1];
-        connections[sock].type == "SEVER";
+        connections[sock].type = "SEVER";
         handshake[sock] = true;
         send_servers(sock);
         return;
     }
 
     if (tokens[0] == "CONNECT"){
-        if (client_connected = true){
+        if (client_connected == true){
             error_msg = "Client already connected";
         }
 
         if (tokens.size() < 2){
-            ("Error CONNECT invalid command");
             error_msg = "invalid command for CONNECT";
             send_error(sock, error_msg);
             return;
@@ -394,14 +392,7 @@ void first_command(int sock, std::vector<std::string> tokens){
             send_error(sock, error_msg);
         }
 
-        else{
-        std::cout << "Unknown command" << std::endl;
-        error_msg = "Unknown command";
-        send_error(sock, error_msg);
-        return;
-        }
-
-        connections[sock].type == "CLIENT";
+        connections[sock].type = "CLIENT";
         handshake[sock] = true;
         client_connected = true;
         std::cout << GROUP_ID <<" connected to socket: " << sock << std::endl;
@@ -410,6 +401,16 @@ void first_command(int sock, std::vector<std::string> tokens){
         send_confirmation(sock, msg_confirmation);
         return;
     }
+
+    else{
+        std::cout << "Unknown command" << std::endl;
+        error_msg = "Unknown command";
+        send_error(sock, error_msg);
+        return;
+    }
+
+        
+    
 }
 
 void client_command(int sock){
@@ -429,7 +430,6 @@ void client_command(int sock){
 
 
         if (data[0] != 0x01 || data[3] != 0x02){
-            ("Error invalid frame");
             return;
         }
 
@@ -442,7 +442,6 @@ void client_command(int sock){
 
         //the frame includes 5 bytes
         if (frame_length < 5){
-            ("Error invalid frame length");
             return;
         }
 
@@ -451,7 +450,6 @@ void client_command(int sock){
         }
 
         if (data[frame_length - 1] != 0x03){
-            ("Error invalid frame");
             return;
         }
 
@@ -529,7 +527,7 @@ void handle_client_data(std::vector<struct pollfd> &fds){
             if (!data.empty()){
                 //MSG_DONTWAIT for send to be nonblocking
                 int sent = send(sock, data.data(), data.size(), MSG_DONTWAIT);
-                log_event_bytes("RECV", ip_addr.c_str(), port, GROUP_ID, data.data(), data.size());
+                log_event_bytes("SEND", ip_addr.c_str(), port, GROUP_ID, data.data(), data.size());
                 if (sent > 0){
                     data.erase(0, sent); 
                 }
@@ -587,8 +585,8 @@ int main(int argc, char* argv[]){
     }
     else{
         fds.push_back({listen_sock, POLLIN, 0}); //listening socket at index 0 in the list
-        std::string curr_time = timestamp();
-        log_event("START",NULL,0,GROUP_ID,"Listening on port " + port);
+        std::string msg = "listening on port " + std::to_string(port);
+        log_event("START",NULL,0,GROUP_ID,msg.c_str());
     }
 
     struct sockaddr_in dest_addr; //for setting up connection to server or client
@@ -615,9 +613,11 @@ int main(int argc, char* argv[]){
     }
 
     else{
+        fds.push_back({sockfd, POLLIN, 0});
+        log_event("CONN", tsam_ip.c_str(), 5001, NULL, "Connecting to");
         send_helo(5001);
-        
     }
+
 
     while (!finished){
         //iterating through the client sockets, skipping the listening socket
