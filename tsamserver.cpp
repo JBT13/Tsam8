@@ -417,6 +417,9 @@ void client_command(int sock){
     std::string &data = connections[sock].receive_buffer;
     std::string command_msg;
     std::vector<std::string> tokens;
+
+    std::string ip_addr = connections[sock].server_ip;
+    int port = connections[sock].server_port;
     
 
     while(true){
@@ -451,9 +454,12 @@ void client_command(int sock){
             ("Error invalid frame");
             return;
         }
+
+        
         //extracting the command starting at byte 4 and excluding the 5 framing bytes
         std::string command = data.substr(4, frame_length - 5);
 
+        log_event_bytes("RECV", ip_addr.c_str(), port, GROUP_ID, command.data(), command.size());
         //removing new line to get the right amount of bytes
         if (command.back() == '\n'){
             command.pop_back();
@@ -476,7 +482,7 @@ void client_command(int sock){
 
 void handle_client_data(std::vector<struct pollfd> &fds){
     char buffer[5005]; //buffer to read from client 
-   
+    
     
     for (size_t i = 1; i < fds.size(); i++){
         if(fds[i].revents & POLLIN){ //socket is readable 
@@ -485,6 +491,8 @@ void handle_client_data(std::vector<struct pollfd> &fds){
             int sock = fds[i].fd;
             //setting the recv to nonblocking with MSG_DONTWAIT 
             //if there is no data available it does not wait
+            
+            
             ssize_t bytes_recv = recv(sock, buffer, sizeof(buffer), MSG_DONTWAIT);
             
             //appending to the clients buffer the bytes received
@@ -514,10 +522,14 @@ void handle_client_data(std::vector<struct pollfd> &fds){
             int sock = fds[i].fd;
             std::string &data = connections[sock].send_buffer; //getting the buffer which contains the response to client
 
+            std::string ip_addr = connections[sock].server_ip;
+            int port = connections[sock].server_port;
+
             //sending buffered data to the client, remaining data remains for POLLOUT
             if (!data.empty()){
                 //MSG_DONTWAIT for send to be nonblocking
                 int sent = send(sock, data.data(), data.size(), MSG_DONTWAIT);
+                log_event_bytes("RECV", ip_addr.c_str(), port, GROUP_ID, data.data(), data.size());
                 if (sent > 0){
                     data.erase(0, sent); 
                 }
@@ -580,6 +592,31 @@ int main(int argc, char* argv[]){
     struct sockaddr_in dest_addr; //for setting up connection to server or client
     socklen_t dest_len;
     
+
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+    // Server address from command line
+    struct sockaddr_in srcaddr;
+    srcaddr.sin_family = AF_INET;
+    srcaddr.sin_port = htons(5001);
+
+    std::string tsam_ip = "130.208.246.98";
+
+    if (inet_pton(AF_INET, tsam_ip.c_str(), &srcaddr.sin_addr) < 0){
+        perror("Invalid ip address");
+        exit(1);
+    }
+
+    if (connect(sockfd, (struct sockaddr*)&srcaddr, sizeof(srcaddr)) < 0){
+        perror("error connecting");
+        exit(1);
+    }
+
+    else{
+        send_helo(5001);
+        
+    }
+
     while (!finished){
         //iterating through the client sockets, skipping the listening socket
         for (size_t i = 1; i < fds.size(); i++){
