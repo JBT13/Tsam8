@@ -25,36 +25,48 @@
 #include <ctime>
 #include <iomanip>
 #include <unistd.h>
-
+#include <identity.h>
 
 #define BACKLOG  5
-
 //structure that stores information about/for client
-struct client {
-    int client_socket;
-    std::string name;
-    std::string receive_buffer;
-    std::string send_buffer;
-    
-};
-
-struct server {
-    int server_socket;
+//TODO: 
+//ef ég fæ sendmsg senda á alla server sem ég er connected to 
+//þótt það sé frá client eða öðrum server
+//Finna út hvernig ég á að sjá mun á server og client 
+//Hversu margir clients
+//TODO: 24.10
+//Gera Helo og Servers
+//hvað ef client sendir HELO?
+//hafa client count?
+struct connected{
     std::string group_id;
+    int socket;
     int server_ip;
     int server_port;
+    const std::string type;
+    std::string receive_buffer;
+    std::string send_buffer;
 };
+
 //structure that keeps track of the clients inbox
 struct message {
     std::vector<std::string> msg_from;
     std::vector<std::string> message_box;
 };
 
-//keeping track of different information for both connected servers and client
-std::map<int, client> clients; //the key is the clients socket number
-std::map<std::string, message> clients_msgbox; //the key is the clients udername
-std::map<int, server> servers; //the key is the server socket number
+//response from servers
+struct server_list{
+    std::string group;
+    int ip;
+    int port;
+};
 
+//keeping track of different information for both connected servers and client
+std::map<std::string, message> msgbox; //the key is the clients udername
+std::map<int, connected> connections; //the key is the server socket number
+std::map <std::string, std::vector<struct server_list>> server_net; //map where it connects a group to it's connected servers
+std::map <int, bool> handshake; //keeping track of after accept to be able to complete protocol with server
+bool client_connected;
 // "Human-readable time" log
 std::string timestamp(){
     time_t current_t = time(nullptr);
@@ -157,14 +169,14 @@ std::vector<char> create_msg(const std::string& message){
 void send_get_msg(int sock){
     //construction the message that gets sent for GETMSQ
     std::string get_msg;
-    std::string username = clients[sock].name;
+    std::string username = connections[sock].group_id;
 
-    std::vector<std::string> message = clients_msgbox[username].message_box;
-    std::vector<std::string> from = clients_msgbox[username].msg_from;
+    std::vector<std::string> message = msgbox[username].message_box;
+    std::vector<std::string> from = msgbox[username].msg_from;
 
     //if the inbox has a message stored for the client then get the front message 
     //and who sent that corresponding message
-    if (!clients_msgbox[username].message_box.empty()){
+    if (!msgbox[username].message_box.empty()){
         std::string msg_send = message.front();
         std::string from_user = from.front();
         
@@ -175,8 +187,8 @@ void send_get_msg(int sock){
         from.erase(from.begin());
 
         //now it stores the messagebox with the message deleted
-        clients_msgbox[username].message_box = message;
-        clients_msgbox[username].msg_from = from;
+        msgbox[username].message_box = message;
+        msgbox[username].msg_from = from;
 
         write_serverlog(username + " got message");
     }
@@ -187,7 +199,7 @@ void send_get_msg(int sock){
 
     //creating the buffer for the response and putting it in the client buffer
     auto buffer = create_msg(get_msg);
-    clients[sock].send_buffer.append(buffer.data(),buffer.size());
+    connections[sock].send_buffer.append(buffer.data(),buffer.size());
 }
 
 
@@ -196,7 +208,7 @@ void send_statusreq(int sock){
     std::string status_req; //construction the message that gets sent for STATUSREQ
 
     //iterating over each clients inbox
-    for (const auto& [name, msg] : clients_msgbox){
+    for (const auto& [name, msg] : msgbox){
         int count = msg.message_box.size();  //getting the number of messages the client has stored
 
         //only add the clients who has a message stored to the response string
@@ -216,81 +228,69 @@ void send_statusreq(int sock){
     //creating the buffer for send
     auto buffer = create_msg(status_req);
     //appending the buffer to the client struct
-    clients[sock].send_buffer.append(buffer.data(), buffer.size());
+    connections[sock].send_buffer.append(buffer.data(), buffer.size());
         
 }
 
 void send_confirmation(int sock, std::string message){
     //sending confirmation to client
     auto buffer = create_msg(message);
-    clients[sock].send_buffer.append(buffer.data(), buffer.size());
+    connections[sock].send_buffer.append(buffer.data(), buffer.size());
 }
 
 void send_error(int sock, std::string message){
     //sending the error message to client
     auto buffer = create_msg(message);
-    clients[sock].send_buffer.append(buffer.data(), buffer.size());
+    connections[sock].send_buffer.append(buffer.data(), buffer.size());
 }
 
-void proc_command(int sock, const std::string &command){
-    std::string command_msg;
-    std::vector<std::string> tokens;
-    std::stringstream stream(command);
+void send_servers(int sock){
+    std::string connected_servers = "SERVERS";
 
+    
+    for (const auto& [key, servers] : connections){
+        if (servers.type == "CLIENT"){
+            continue;
+        }
+        
+        if (!connected_servers.empty()){
+            connected_servers += ",";
+        }
+        connected_servers += servers.group_id + "," + std::to_string(servers.server_ip) + "," + std::to_string(servers.server_port);
+    }
+
+    auto buffer = create_msg(connected_servers);
+    //appending the buffer to the connection struct
+    connections[sock].send_buffer.append(buffer.data(), buffer.size());
+}
+
+void proc_command(int sock, std::vector<std::string> tokens){
     std::string send_to;
     std::string from;
     std::string msg_send;
     std::string error_msg;
-    
-
-    while (std::getline(stream, command_msg, ',')){ //splitting the command at , and putting it in tokens
-        tokens.push_back(command_msg);
-    }
-
+    std::string main_connection;
+    std::vector<std::string> servers_from;
     if (tokens.empty()){ //no command
         return;
     }
     
-    if (tokens[0] == "HALO"){
-        
-        if (tokens.size() < 2){
-            write_serverlog("Error CONNECT invalid command");
-            error_msg = "invalid command for CONNECT";
-            return;
+    if (tokens[0] == "SERVERS"){
+        main_connection = connections[sock].group_id;
+        //TODO: prenta og server loga listann
+        tokens.erase(tokens.begin());
+        int n = tokens.size();
+        //TODO: ath n modulud 3?
+        while (n > 0){
+            std::string group_id = tokens[0];
+            int group_ip = std::stoi(tokens[1]);
+            int group_port = std::stoi(tokens[2]);
+            server_net[main_connection].push_back({group_id, group_ip, group_port});
+            n -= 3;
         }
-
-        std::string username = tokens[1];
-
-        //checking if a user is already connected to a socket
-        if (!clients[sock].name.empty()){
-            write_serverlog("Error CONNECT user already connected");
-            error_msg = "You are already connected. \nYou can use these commands: SENDMSG, GETMSG, STATUSREQ";
-            send_error(sock, error_msg);
-            return;
-        }
-        
-        //iterating through all connected clients to see if username is taken
-        for (const auto& [client_sock, connected_client] : clients){
-            if (connected_client.name == username){
-                write_serverlog("Error CONNECT a user with that username is already connected");
-                error_msg = "a user with that username is already connected";
-                send_error(sock, error_msg);
-                return;
-            }
-        }
-
-        for (size_t i = 4; i < tokens.size(); i++){
-            msg_send += "," + tokens[i]; //if username included , that got split. Putting it back together
-        }
-
-        clients[sock].name = tokens[1]; //setting the name for the client in client struct
-        std::cout << tokens[1] <<" connected to socket: " << sock << std::endl;
-        std::string msg_confirmation = "Successfully connected"; //reporting to client that the connection was succesful
-        write_serverlog(tokens[1] + " connected to server");
-        send_confirmation(sock, msg_confirmation);
     }
-
-    else if (tokens[0] == "SENDMSG"){ 
+                                        //ef þetta er frá client þá bæta við timestamp
+    else if (tokens[0] == "SENDMSG"){  //TODO: ath hvort það sé til okkar group þá setja í client message box annars áfram senda:
         //extracting appropriate fields from tokens
         if (tokens.size() < 4){
             write_serverlog("Error SENDMSG invalid command");
@@ -303,7 +303,7 @@ void proc_command(int sock, const std::string &command){
         msg_send = tokens[3];
 
         //client must connect as a user before sending a message
-        if (clients[sock].name.empty()){
+        if (connections[sock].group_id.empty()){
             error_msg = "must connect as a user before";
             write_serverlog("Error SENDMSG user is not connected");
             send_error(sock, error_msg);
@@ -311,7 +311,7 @@ void proc_command(int sock, const std::string &command){
         }
 
         //connected user does not match the from user in the command
-        if (clients[sock].name != from){
+        if (connections[sock].group_id != from){
             error_msg = "sender does not match connected user";
             write_serverlog("Error SENDMSG sender does not match connected user");
             send_error(sock, error_msg);
@@ -322,8 +322,8 @@ void proc_command(int sock, const std::string &command){
         }
         
         //appending to the user whp is receiving message inbox and who the message is from
-        clients_msgbox[send_to].message_box.push_back(msg_send);
-        clients_msgbox[send_to].msg_from.push_back(from);
+        msgbox[send_to].message_box.push_back(msg_send);
+        msgbox[send_to].msg_from.push_back(from);
 
         //sending confirmation to the user that their message was sent 
         std::string msg_confirmation = "message sent";
@@ -335,7 +335,7 @@ void proc_command(int sock, const std::string &command){
         from = tokens[1];
 
         //client must connect as a user before sending a message
-        if (clients[sock].name.empty()){
+        if (connections[sock].group_id.empty()){
             error_msg = "must connect as a user before";
             write_serverlog("Error GETMSG user is not connected");
             send_error(sock, error_msg);
@@ -343,7 +343,7 @@ void proc_command(int sock, const std::string &command){
         }
          
         //names do not match
-        if (clients[sock].name != from){
+        if (connections[sock].name != from){
             error_msg = "requested user does not match connected user";
             write_serverlog("Error GETMSG requested user does not match connected user");
             send_error(sock, error_msg);
@@ -354,7 +354,7 @@ void proc_command(int sock, const std::string &command){
     }
 
     else if(tokens[0] == "STATUSREQ"){
-        write_serverlog("STATUSREQ sent to: " + clients[sock].name);
+        write_serverlog("STATUSREQ sent to: " + connections[sock].group_id);
         send_statusreq(sock);
  
     }
@@ -362,7 +362,7 @@ void proc_command(int sock, const std::string &command){
     //unknown command from the client 
     else{
         std::cout << "Unknown command from client" << std::endl;
-        error_msg = "Unknown command\nValid commands: CONNECT, SENDMSG, GETMSG, STATUSREQ";
+        error_msg = "Unknown command\nValid commands: CONNECT, SENDMSG, GETMSG, STATUSREQ"; //TODO: LAGA ÞETTA
         write_serverlog("Error unknown command");
         send_error(sock, error_msg);
         return;
@@ -370,9 +370,65 @@ void proc_command(int sock, const std::string &command){
     
 }
 
+void first_command(int sock, std::vector<std::string> tokens){
+    std::string error_msg;
+
+    if (tokens.empty()){ //no command
+        return;
+    }
+
+    if (tokens[0] == "HELO"){
+        connections[sock].group_id = tokens[0];
+        connections[sock].type == "SEVER";
+        handshake[sock] = true;
+        send_servers(sock);
+        return;
+    }
+
+    if (tokens[0] == "CONNECT"){
+        if (client_connected = true){
+            error_msg = "Client already connected";
+        }
+
+        if (tokens.size() < 2){
+            write_serverlog("Error CONNECT invalid command");
+            error_msg = "invalid command for CONNECT";
+            send_error(sock, error_msg);
+            return;
+        }
+
+        std::string username = tokens[1];
+
+        if (username != GROUP_ID){
+            error_msg = "invalid client";
+            send_error(sock, error_msg);
+        }
+
+        else{
+        std::cout << "Unknown command" << std::endl;
+        error_msg = "Unknown command";
+        write_serverlog("Error unknown command");
+        send_error(sock, error_msg);
+        return;
+        }
+
+        connections[sock].type == "CLIENT";
+        handshake[sock] = true;
+        client_connected = true;
+        std::cout << GROUP_ID <<" connected to socket: " << sock << std::endl;
+        std::string msg_confirmation = "Successfully connected"; //reporting to client that the connection was succesful
+        write_serverlog(tokens[1] + " connected to server");
+        send_confirmation(sock, msg_confirmation);
+        return;
+    }
+}
+
 void client_command(int sock){
     //refrencing the clients buffer to read its data
-    std::string &data = clients[sock].receive_buffer;
+    std::string &data = connections[sock].receive_buffer;
+    std::string command_msg;
+    std::vector<std::string> tokens;
+    
 
     while(true){
         if (data.size() < 4){
@@ -415,13 +471,23 @@ void client_command(int sock){
         }
 
         data.erase(0, frame_length);
-        proc_command(sock, command); //processing which command it is
+        std::stringstream stream(command);
+        while (std::getline(stream, command_msg, ',')){ //splitting the command at , and putting it in tokens
+            tokens.push_back(command_msg);
+        }
+
+        if (handshake[sock] == false){
+            first_command(sock, tokens); //handling the first command from either client or server
+        }
+        else{
+            proc_command(sock, tokens); //processing which command it is
+        }
     }
 }
 
 void handle_client_data(std::vector<struct pollfd> &fds){
     char buffer[5005]; //buffer to read from client 
-
+   
     
     for (size_t i = 1; i < fds.size(); i++){
         if(fds[i].revents & POLLIN){ //socket is readable 
@@ -434,15 +500,20 @@ void handle_client_data(std::vector<struct pollfd> &fds){
             
             //appending to the clients buffer the bytes received
             if (bytes_recv > 0){
-                clients[sock].receive_buffer.append(buffer, bytes_recv);
+                connections[sock].receive_buffer.append(buffer, bytes_recv);
                 client_command(sock); //processing the command client sent
             }
 
             else if (bytes_recv == 0){ //when client has called close(socket)
                 //closing the client socket and erasing it from the list
-                write_serverlog(clients[sock].name + " Disconnected");
+                if (connections[sock].type == "CLIENT"){
+                    client_connected = false;
+                }
+                write_serverlog(connections[sock].group_id + " Disconnected");
                 close(sock);
-                clients.erase(sock);
+                server_net.erase(connections[sock].group_id);
+                connections.erase(sock);
+                handshake.erase(sock);
                 fds.erase(fds.begin() + i);
                 i--;
                 continue;
@@ -452,7 +523,7 @@ void handle_client_data(std::vector<struct pollfd> &fds){
         if(fds[i].revents & POLLOUT){ //socket is writeable
 
             int sock = fds[i].fd;
-            std::string &data = clients[sock].send_buffer; //getting the buffer which contains the response to client
+            std::string &data = connections[sock].send_buffer; //getting the buffer which contains the response to client
 
             //sending buffered data to the client, remaining data remains for POLLOUT
             if (!data.empty()){
@@ -463,9 +534,14 @@ void handle_client_data(std::vector<struct pollfd> &fds){
                 }
                 else if (sent <= 0){
                     //closing the client socket and erasing it from the list
-                    write_serverlog(clients[sock].name + " Disconnected");
+                    if (connections[sock].type == "CLIENT"){
+                        client_connected = false;
+                    }
+                    write_serverlog(connections[sock].group_id + " Disconnected");
                     close(sock);
-                    clients.erase(sock);
+                    handshake.erase(sock);
+                    server_net.erase(connections[sock].group_id);
+                    connections.erase(sock);
                     fds.erase(fds.begin() + i);
                     i--;
                     continue;
@@ -477,18 +553,16 @@ void handle_client_data(std::vector<struct pollfd> &fds){
     }
 }
 
+
+
+
 int main(int argc, char* argv[]){
     bool finished = false; //For the while loop
     int listen_sock;   // Socket for connections to server
-    int client_sock;   //Socket client connects to
+    int sock_acc;   //Socket client connects to
     
-
+   
     std::vector<struct pollfd> fds; //vector for poll() to keep track of the clients
-
-
-    struct sockaddr_in client_addr; //for setting up client connection 
-    socklen_t client_len;
-    char buffer[5005]; //buffer to read from client 
 
     if(argc != 2)
     {
@@ -520,10 +594,6 @@ int main(int argc, char* argv[]){
 
     
     while (!finished){
-        //clearing the buffer
-        memset(buffer, 0, sizeof(buffer));
-        
-
         //iterating through the client sockets, skipping the listening socket
         for (size_t i = 1; i < fds.size(); i++){
             int sock = fds[i].fd;
@@ -549,16 +619,17 @@ int main(int argc, char* argv[]){
 
         //checking if the listening socket has clients ready to connect
         if (fds[0].revents & POLLIN){
-            client_len = sizeof(client_addr);
+            
 
-            client_sock = accept(listen_sock, (struct sockaddr *)&client_addr, &client_len);
-            if (client_sock < 0){
+            sock_acc = accept(listen_sock, nullptr, nullptr);
+            if (sock_acc < 0){
                 perror("accept failed");
             }
             else{
-                fds.push_back({client_sock, POLLIN, 0}); //adding the client to fds list if accept is succesful
-                clients[client_sock].client_socket = client_sock; //adding the client to the client struct
+                fds.push_back({sock_acc, POLLIN, 0}); //adding the socket to fds vector
                 write_serverlog("New client accepted");
+                handshake[sock_acc] = false;
+                //TODO: hafa HELO hér?
                 }
             }
         handle_client_data(fds); //processing client data
