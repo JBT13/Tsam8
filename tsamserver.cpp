@@ -32,7 +32,7 @@
 #define BACKLOG  5
 //structure that stores information about/for client
 //TODO: 
-//ef ég fæ sendmsg senda á alla server sem ég er (connected to 
+//ef ég fæ sendmsg senda á alla server sem ég er connected to 
 //þótt það sé frá client eða öðrum server)
 //Finna út hvernig ég á að sjá mun á server og client 
 //Hversu margir clients
@@ -40,6 +40,7 @@
 //Gera Helo og Servers
 //hvað ef client sendir HELO?
 //hafa client count?
+//laga server log fyrir send 
 struct connected{
     std::string group_id;
     int socket;
@@ -66,6 +67,7 @@ struct server_list{
 //keeping track of different information for both connected servers and client
 //ef server listi með 8 þá sleppa
 std::map<std::string, message> msgbox; //the key is the clients udername
+std::map<std::string, message> stored_message; //storing message for a group if connection is not found 
 std::map<int, connected> connections; //the key is the server socket number
 std::map <std::string, std::vector<struct server_list>> server_net; //map where it connects a group to it's connected servers
 std::map <int, bool> handshake; //keeping track of after accept to be able to complete protocol with server
@@ -173,8 +175,6 @@ void send_get_msg(int sock){
         //now it stores the messagebox with the message deleted
         msgbox[username].message_box = message;
         msgbox[username].msg_from = from;
-
-        (username + " got message");
     }
     else{
         //message for a client that has no messages 
@@ -247,6 +247,7 @@ void send_servers(int sock){
     //appending the buffer to the connection struct
     connections[sock].send_buffer.append(buffer.data(), buffer.size());
 }
+
 void send_helo(int sock){
     std::string group_name = GROUP_ID;
     std::string helo_msg = "HELO," + group_name;
@@ -256,6 +257,60 @@ void send_helo(int sock){
     send_servers(sock);
 }
 
+
+void to_send(int sock, std::string msg, std::string send_to){
+    //first checking if we are directly connected to the group
+    std::string forward = "";
+    for (const auto& [key, servers] : connections){
+        if (servers.group_id == send_to){
+            auto buffer = create_msg(msg);
+            connections[key].send_buffer.append(buffer.data(), buffer.size());
+            return;
+        }
+    }
+
+    //else checking if one of our connection is connected to it
+    for (const auto& [key, servers] : server_net){
+        for (const auto& neighbor: servers){
+            if (neighbor.group == send_to){
+                forward = key;
+                break;
+            }
+        }
+        if (!forward.empty()){
+            break;
+        }
+    }
+
+    //finding which server is the next hop to forward the message 
+    for (const auto& [key, servers] : connections){
+        if (forward == servers.group_id){
+            auto buffer = create_msg(msg);
+            connections[key].send_buffer.append(buffer.data(), buffer.size());
+            return;
+        }
+    }
+
+    //no connection to group found
+    //TODO: figure this out later 
+    stored_message[send_to].message_box.push_back(msg);
+}
+
+void forward_stored_msg(int sock, std::string group_name){
+    std::vector<std::string> message = stored_message[group_name].message_box;
+    std::string msg_send = message.front();
+
+    //TODO: hafa for loopu ef hann skildi vera með mörg message 
+    auto buffer = create_msg(msg_send);
+    connections[sock].send_buffer.append(buffer.data(), buffer.size());
+
+    //erasing the message from the clients inbox
+    message.erase(message.begin()); 
+       
+    //now it stores the messagebox with the message deleted
+    msgbox[group_name].message_box = message;
+
+}
 void proc_command(int sock, std::vector<std::string> tokens){
     std::string send_to;
     std::string from;
@@ -263,6 +318,7 @@ void proc_command(int sock, std::vector<std::string> tokens){
     std::string error_msg;
     std::string main_connection;
     std::vector<std::string> servers_from;
+
     if (tokens.empty()){ //no command
         return;
     }
@@ -279,6 +335,14 @@ void proc_command(int sock, std::vector<std::string> tokens){
             int group_port = std::stoi(tokens[2]);
             server_net[main_connection].push_back({group_id, group_ip, group_port});
             //mjög ljótur kóði
+            if (!msgbox.empty()){
+                for (const auto& [name, messages] : msgbox){
+                    if (name == group_id){
+                        forward_stored_msg(sock, name);
+                        break;
+                    }
+                }
+            }
             tokens.erase(tokens.begin());
             tokens.erase(tokens.begin());
             tokens.erase(tokens.begin());
@@ -287,7 +351,9 @@ void proc_command(int sock, std::vector<std::string> tokens){
     }
                                         //ef þetta er frá client þá bæta við timestamp
     else if (tokens[0] == "SENDMSG"){  //TODO: ath hvort það sé til okkar group þá setja í client message box annars áfram senda:
-        //extracting appropriate fields from tokens
+        //extracting appropriate fields from tokens         
+         std::string message_send;
+
         if (tokens.size() < 4){
             error_msg = "invalid command for SENDMSG";
             send_error(sock, error_msg);
@@ -295,33 +361,39 @@ void proc_command(int sock, std::vector<std::string> tokens){
         }
         from = tokens[1];
         send_to = tokens[2];
-        msg_send = tokens[3];
+        
 
-        //client must connect as a user before sending a message
-        if (connections[sock].group_id.empty()){
-            error_msg = "must connect as a user before";
-            send_error(sock, error_msg);
-            return;
-        }
-
-        //connected user does not match the from user in the command
-        if (connections[sock].group_id != from){
-            error_msg = "sender does not match connected user";
-            send_error(sock, error_msg);
-            return;
-        }
         for (size_t i = 4; i < tokens.size(); i++){
             msg_send += "," + tokens[i]; //if message included , that got split. Putting it back together
         }
-        
-        //appending to the user whp is receiving message inbox and who the message is from
-        msgbox[send_to].message_box.push_back(msg_send);
-        msgbox[send_to].msg_from.push_back(from);
 
-        //sending confirmation to the user that their message was sent 
-        std::string msg_confirmation = "message sent";
-        send_confirmation(sock, msg_confirmation);
+        if (connections[sock].type == "CLIENT"){
+            //connected user does not match the from user in the command
+            if (connections[sock].group_id != from){
+                error_msg = "sender does not match connected user";
+                send_error(sock, error_msg);
+                return;
+            }
+            msg_send = tokens[3];
+            std::string curr_time = timestamp();
+            message_send = "SENDMSG," + from + "," + send_to + "," + curr_time + "," + msg_send; 
+            to_send(sock, message_send, send_to);
+
+        }        
+       
+        else if (send_to == GROUP_ID){
+            msgbox[send_to].message_box.push_back(msg_send);
+            msgbox[send_to].msg_from.push_back(from);
         }
+        
+        else{
+            std::string timestamp = tokens[3];
+            msg_send = tokens[4];
+            message_send = "SENDMSG," + from + "," + send_to + "," + timestamp + "," + msg_send;
+            to_send(sock, message_send, send_to);
+        }
+        
+    }
         
     else if(tokens[0] == "GETMSG"){
         from = tokens[1];
@@ -370,7 +442,7 @@ void first_command(int sock, std::vector<std::string> tokens){
         connections[sock].group_id = tokens[1];
         connections[sock].type = "SEVER";
         handshake[sock] = true;
-        send_servers(sock);
+        send_helo(sock);
         return;
     }
 
@@ -393,6 +465,7 @@ void first_command(int sock, std::vector<std::string> tokens){
         }
 
         connections[sock].type = "CLIENT";
+        connections[sock].group_id = username;
         handshake[sock] = true;
         client_connected = true;
         std::cout << GROUP_ID <<" connected to socket: " << sock << std::endl;
@@ -408,9 +481,6 @@ void first_command(int sock, std::vector<std::string> tokens){
         send_error(sock, error_msg);
         return;
     }
-
-        
-    
 }
 
 void client_command(int sock){
@@ -654,6 +724,7 @@ int main(int argc, char* argv[]){
                 fds.push_back({sock_acc, POLLIN, 0}); //adding the socket to fds vector
                 std::string ip_addr = inet_ntoa(dest_addr.sin_addr); //converting the ip address to string
                 int port = ntohs(dest_addr.sin_port);
+                connections[sock_acc].socket = sock_acc;
                 connections[sock_acc].server_ip = ip_addr;
                 connections[sock_acc].server_port = port;
                 handshake[sock_acc] = false;
