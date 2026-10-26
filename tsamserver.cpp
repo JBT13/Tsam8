@@ -49,6 +49,8 @@ struct connected{
     std::string type;
     std::string receive_buffer;
     std::string send_buffer;
+
+    bool helo_sent = false;
 };
 
 //structure that keeps track of the clients inbox
@@ -60,8 +62,8 @@ struct message {
 //response from servers
 struct server_list{
     std::string group;
-    int ip;
-    int port;
+    std::string ip;
+    std::string port;
 };
 
 //keeping track of different information for both connected servers and client
@@ -233,7 +235,7 @@ void send_servers(int sock){
 
     
     for (const auto& [key, servers] : connections){
-        if (servers.type == "CLIENT"){
+        if (servers.type == "CLIENT" || servers.group_id.empty()){
             continue;
         }
         
@@ -249,12 +251,16 @@ void send_servers(int sock){
 }
 
 void send_helo(int sock){
+
+    if (connections[sock].helo_sent){
+        return;
+    }
     std::string group_name = GROUP_ID;
     std::string helo_msg = "HELO," + group_name;
     
     auto buffer = create_msg(helo_msg);
     connections[sock].send_buffer.append(buffer.data(), buffer.size());
-    send_servers(sock);
+    connections[sock].helo_sent = true;
 }
 
 
@@ -287,6 +293,7 @@ void to_send(int sock, std::string msg, std::string send_to){
         if (forward == servers.group_id){
             auto buffer = create_msg(msg);
             connections[key].send_buffer.append(buffer.data(), buffer.size());
+            log_note("not directly connected to group, forwarding to %s", servers.group_id.c_str());
             return;
         }
     }
@@ -294,10 +301,14 @@ void to_send(int sock, std::string msg, std::string send_to){
     //no connection to group found
     //TODO: figure this out later 
     stored_message[send_to].message_box.push_back(msg);
+    log_note("couldn't find route to group %s, storing its message for now", send_to.c_str());
 }
 
 void forward_stored_msg(int sock, std::string group_name){
     std::vector<std::string> message = stored_message[group_name].message_box;
+    if (message.empty()){
+        return;
+    }
     std::string msg_send = message.front();
 
     //TODO: hafa for loopu ef hann skildi vera með mörg message 
@@ -308,7 +319,7 @@ void forward_stored_msg(int sock, std::string group_name){
     message.erase(message.begin()); 
        
     //now it stores the messagebox with the message deleted
-    msgbox[group_name].message_box = message;
+    stored_message[group_name].message_box = message;
 
 }
 void proc_command(int sock, std::vector<std::string> tokens){
@@ -327,16 +338,15 @@ void proc_command(int sock, std::vector<std::string> tokens){
         main_connection = connections[sock].group_id;
         //TODO: prenta og server loga listann
         tokens.erase(tokens.begin());
-        int n = tokens.size();
         //TODO: ath n modulus 3?
-        while (n > 0){
+        while (tokens.size() >= 3){
             std::string group_id = tokens[0];
-            int group_ip = std::stoi(tokens[1]);
-            int group_port = std::stoi(tokens[2]);
+            std::string group_ip = tokens[1];
+            std::string group_port = tokens[2];
             server_net[main_connection].push_back({group_id, group_ip, group_port});
             //mjög ljótur kóði
-            if (!msgbox.empty()){
-                for (const auto& [name, messages] : msgbox){
+            if (!stored_message.empty()){
+                for (const auto& [name, messages] : stored_message){
                     if (name == group_id){
                         forward_stored_msg(sock, name);
                         break;
@@ -346,7 +356,6 @@ void proc_command(int sock, std::vector<std::string> tokens){
             tokens.erase(tokens.begin());
             tokens.erase(tokens.begin());
             tokens.erase(tokens.begin());
-            n -= 3;
         }
     }
                                         //ef þetta er frá client þá bæta við timestamp
@@ -443,6 +452,7 @@ void first_command(int sock, std::vector<std::string> tokens){
         connections[sock].type = "SEVER";
         handshake[sock] = true;
         send_helo(sock);
+        send_servers(sock);
         return;
     }
 
@@ -574,7 +584,6 @@ void handle_client_data(std::vector<struct pollfd> &fds){
                 if (connections[sock].type == "CLIENT"){
                     client_connected = false;
                 }
-                (connections[sock].group_id + " Disconnected");
                 close(sock);
                 server_net.erase(connections[sock].group_id);
                 connections.erase(sock);
@@ -668,7 +677,7 @@ int main(int argc, char* argv[]){
     // Server address from command line
     struct sockaddr_in srcaddr;
     srcaddr.sin_family = AF_INET;
-    srcaddr.sin_port = htons(5001);
+    srcaddr.sin_port = htons(5002);
 
     std::string tsam_ip = "130.208.246.98";
 
@@ -685,7 +694,11 @@ int main(int argc, char* argv[]){
     else{
         fds.push_back({sockfd, POLLIN, 0});
         log_event("CONN", tsam_ip.c_str(), 5001, NULL, "Connecting to");
-        send_helo(5001);
+        connections[sockfd].socket = sockfd;
+        connections[sockfd].server_ip = tsam_ip;
+        connections[sockfd].server_port = 5001;
+        handshake[sockfd] = false;
+        send_helo(sockfd);
     }
 
 
