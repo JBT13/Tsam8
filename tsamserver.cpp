@@ -111,6 +111,7 @@ int open_socket(int port){
     sk_addr.sin_addr.s_addr = INADDR_ANY;
     sk_addr.sin_port        = htons(port);
 
+    
     //binding the socket and listen for connection from the client
     if (bind(sock, (struct sockaddr *)&sk_addr, sizeof(sk_addr)) < 0){
         perror("Failed to bind to socket:");
@@ -449,7 +450,7 @@ void first_command(int sock, std::vector<std::string> tokens){
 
     if (tokens[0] == "HELO"){
         connections[sock].group_id = tokens[1];
-        connections[sock].type = "SEVER";
+        connections[sock].type = "SERVER";
         handshake[sock] = true;
         send_helo(sock);
         send_servers(sock);
@@ -504,6 +505,7 @@ void client_command(int sock){
     
 
     while(true){
+        tokens.clear();
         if (data.size() < 4){
             return; //can't read frame for length 
         }
@@ -606,8 +608,9 @@ void handle_client_data(std::vector<struct pollfd> &fds){
             if (!data.empty()){
                 //MSG_DONTWAIT for send to be nonblocking
                 int sent = send(sock, data.data(), data.size(), MSG_DONTWAIT);
-                log_event_bytes("SEND", ip_addr.c_str(), port, GROUP_ID, data.data(), data.size());
+                
                 if (sent > 0){
+                    log_event_bytes("SEND", ip_addr.c_str(), port, GROUP_ID, data.data(), sent);
                     data.erase(0, sent); 
                 }
                 else if (sent <= 0){
@@ -671,13 +674,10 @@ int main(int argc, char* argv[]){
     struct sockaddr_in dest_addr; //for setting up connection to server or client
     socklen_t dest_len;
     
-
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
     // Server address from command line
     struct sockaddr_in srcaddr;
     srcaddr.sin_family = AF_INET;
-    srcaddr.sin_port = htons(5002);
+    srcaddr.sin_port = htons(5001);
 
     std::string tsam_ip = "130.208.246.98";
 
@@ -685,6 +685,8 @@ int main(int argc, char* argv[]){
         perror("Invalid ip address");
         exit(1);
     }
+
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (connect(sockfd, (struct sockaddr*)&srcaddr, sizeof(srcaddr)) < 0){
         perror("error connecting");
@@ -694,7 +696,7 @@ int main(int argc, char* argv[]){
     else{
         fds.push_back({sockfd, POLLIN, 0});
         log_event("CONN", tsam_ip.c_str(), 5001, NULL, "Connecting to");
-        connections[sockfd].socket = sockfd;
+        connections[sockfd].socket = listen_sock;
         connections[sockfd].server_ip = tsam_ip;
         connections[sockfd].server_port = 5001;
         handshake[sockfd] = false;
