@@ -17,7 +17,6 @@
 #include <poll.h>
 #include "log_event.h"
 
-
 #include <iostream>
 #include <sstream>
 #include <thread>
@@ -50,6 +49,7 @@ struct connected{
     std::string receive_buffer;
     std::string send_buffer;
 
+    time_t last_keepalive = 0;
     bool helo_sent = false;
 };
 
@@ -82,6 +82,23 @@ std::string timestamp(){
     char ts[32];
     strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", localtime(&current_t));
     return std::string(ts);
+}
+
+void check_keepalive(){
+    time_t now =  time(nullptr);
+
+    for (auto& [sock, conn] : connections){
+
+        if (conn.type == "CLIENT" || conn.group_id.empty()){
+            continue;
+        }
+
+        if (now - conn.last_keepalive >= 60){
+            auto buffer = create_msg("KEEPALIVE, 0");
+            conn.send_buffer.append(buffer.data(), buffer.size());
+            conn.last_keepalive = now; 
+        }
+    }
 }
 
 int open_socket(int port){
@@ -404,6 +421,10 @@ void proc_command(int sock, std::vector<std::string> tokens){
         }
         
     }
+
+    else if (tokens[0] == "KEEPALIVE"){
+        return;
+    }
         
     else if(tokens[0] == "GETMSG"){
         from = tokens[1];
@@ -451,6 +472,7 @@ void first_command(int sock, std::vector<std::string> tokens){
     if (tokens[0] == "HELO"){
         connections[sock].group_id = tokens[1];
         connections[sock].type = "SERVER";
+        connections[sock].last_keepalive = time(nullptr); // First KEEPALIVE in 60s
         handshake[sock] = true;
         send_helo(sock);
         send_servers(sock);
@@ -705,6 +727,7 @@ int main(int argc, char* argv[]){
 
 
     while (!finished){
+        check_keepalive();
         //iterating through the client sockets, skipping the listening socket
         for (size_t i = 1; i < fds.size(); i++){
             int sock = fds[i].fd;
@@ -718,7 +741,7 @@ int main(int argc, char* argv[]){
 
         //wait indefinetly until poll reports a socket is ready for reading/writing 
         //-1 in timeout parameter for indefinetly
-        int n = poll(fds.data(), fds.size(), -1);
+        int n = poll(fds.data(), fds.size(), 1000);
 
         //stopping the loop if poll returns an error
         if(n < 0){
