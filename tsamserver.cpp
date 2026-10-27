@@ -84,22 +84,6 @@ std::string timestamp(){
     return std::string(ts);
 }
 
-void check_keepalive(){
-    time_t now =  time(nullptr);
-
-    for (auto& [sock, conn] : connections){
-
-        if (conn.type == "CLIENT" || conn.group_id.empty()){
-            continue;
-        }
-
-        if (now - conn.last_keepalive >= 60){
-            auto buffer = create_msg("KEEPALIVE, 0");
-            conn.send_buffer.append(buffer.data(), buffer.size());
-            conn.last_keepalive = now; 
-        }
-    }
-}
 
 int open_socket(int port){
     struct sockaddr_in sk_addr;   // address settings for bind()
@@ -170,7 +154,22 @@ std::vector<char> create_msg(const std::string& message){
     return buffer;
 }
 
+void check_keepalive(){
+    time_t now =  time(nullptr);
 
+    for (auto& [sock, conn] : connections){
+
+        if (conn.type == "CLIENT" || conn.group_id.empty()){
+            continue;
+        }
+
+        if (now - conn.last_keepalive >= 60){
+            auto buffer = create_msg("KEEPALIVE, 0");
+            conn.send_buffer.append(buffer.data(), buffer.size());
+            conn.last_keepalive = now; 
+        }
+    }
+}
 
 void send_get_msg(int sock){
     //construction the message that gets sent for GETMSQ
@@ -212,7 +211,7 @@ void send_statusreq(int sock){
     std::string status_req; //construction the message that gets sent for STATUSREQ
 
     //iterating over each clients inbox
-    for (const auto& [name, msg] : msgbox){
+    for (const auto& [name, msg] : stored_message){
         int count = msg.message_box.size();  //getting the number of messages the client has stored
 
         //only add the clients who has a message stored to the response string
@@ -426,7 +425,7 @@ void proc_command(int sock, std::vector<std::string> tokens){
         return;
     }
         
-    else if(tokens[0] == "GETMSG"){
+    else if(tokens[0] == "GETMSGS"){
         from = tokens[1];
 
         //client must connect as a user before sending a message
