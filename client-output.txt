@@ -50,3 +50,8 @@
 [1793132596]Connected to 127.0.0.1:4022
 [1793132602]RECEIVED: Successfully connected
 [1793132633]Disconnected from server
+[1793132774]Connected to 127.0.0.1:4022
+[1793132784]RECEIVED: Successfully connected
+[1793132793]RECEIVED: From: G_kiwi
+Message: ,TEST_ME
+[1793132956]Disconnected from server
