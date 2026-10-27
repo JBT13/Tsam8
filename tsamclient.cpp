@@ -26,10 +26,7 @@ std::ofstream out_file;
 
 // "Human-readable time" log
 std::string timestamp(){
-    time_t current_t = time(nullptr);
-    char ts[32];
-    strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", localtime(&current_t));
-    return std::string(ts);
+    return std::to_string(time(nullptr));
 }
 
 // The screen and the file match

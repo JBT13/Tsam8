@@ -78,10 +78,7 @@ bool client_connected;
 
 // "Human-readable time" log
 std::string timestamp(){
-    time_t current_t = time(nullptr);
-    char ts[32];
-    strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%S", localtime(&current_t));
-    return std::string(ts);
+    return std::to_string(time(nullptr));
 }
 
 
@@ -208,7 +205,7 @@ void send_get_msg(int sock){
 
 
 void send_statusreq(int sock){
-    std::string status_req; //construction the message that gets sent for STATUSREQ
+    std::string status_req = "STATUSRESP"; //construction the message that gets sent for STATUSREQ
 
     //iterating over each clients inbox
     for (const auto& [name, msg] : stored_message){
@@ -225,7 +222,7 @@ void send_statusreq(int sock){
     }
 
     if (status_req.empty()){
-        status_req = "EMPTY";
+        status_req += ",EMPTY";
     }
     
     //creating the buffer for send
@@ -268,7 +265,6 @@ void send_servers(int sock){
 }
 
 void send_helo(int sock){
-
     if (connections[sock].helo_sent){
         return;
     }
@@ -350,7 +346,9 @@ void proc_command(int sock, std::vector<std::string> tokens){
     if (tokens.empty()){ //no command
         return;
     }
-    
+    if (tokens[0] == "ERROR"){
+        return;
+    }
     if (tokens[0] == "SERVERS"){
         main_connection = connections[sock].group_id;
         //TODO: prenta og server loga listann

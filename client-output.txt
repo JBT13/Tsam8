@@ -18,3 +18,35 @@
 [2026-10-24T18:29:56]RECEIVED: Successfully connected
 [2026-10-24T18:30:01]RECEIVED: EMPTY
 [2026-10-24T18:30:07]Disconnected from server
+[2026-10-27T19:08:05]Connected to 127.0.0.1:4044
+[2026-10-27T19:08:22]RECEIVED: Successfully connected
+[2026-10-27T19:21:44]Disconnected from server
+[2026-10-27T19:22:15]Connected to 130.208.246.98:4044
+[2026-10-27T19:22:15]RECEIVED: HELO,G_G-Monster
+[2026-10-27T19:22:36]RECEIVED: ERROR,unknown command
+[2026-10-27T19:27:31]RECEIVED: OK
+[2026-10-27T19:30:52]Connected to 130.208.246.98:4044
+[2026-10-27T19:30:52]RECEIVED: HELO,G_G-Monster
+[2026-10-27T19:31:43]RECEIVED: OK
+[2026-10-27T19:37:00]Connected to 130.208.246.98:4044
+[2026-10-27T19:37:00]RECEIVED: HELO,G_G-Monster
+[2026-10-27T19:42:40]Connected to 127.0.0.1:4022
+[2026-10-27T19:42:54]RECEIVED: Successfully connected
+[2026-10-27T19:48:21]Disconnected from server
+[2026-10-27T19:48:31]Connected to 127.0.0.1:4022
+[2026-10-27T19:48:37]RECEIVED: Successfully connected
+[2026-10-27T19:49:24]Disconnected from server
+[1793130848]Connected to 127.0.0.1:4022
+[1793130855]RECEIVED: invalid client
+[1793130855]RECEIVED: Successfully connected
+[1793130875]RECEIVED: sender does not match connected user
+[1793130882]Connected to 127.0.0.1:4022
+[1793130887]RECEIVED: Successfully connected
+[1793130994]Disconnected from server
+[1793131033]Connected to 127.0.0.1:4022
+[1793131041]RECEIVED: Successfully connected
+[1793131219]Disconnected from server
+[1793132534]Connected to 127.0.0.1:4022
+[1793132596]Connected to 127.0.0.1:4022
+[1793132602]RECEIVED: Successfully connected
+[1793132633]Disconnected from server
