@@ -696,7 +696,7 @@ int main(int argc, char* argv[]){
     // Server address from command line
     struct sockaddr_in srcaddr;
     srcaddr.sin_family = AF_INET;
-    srcaddr.sin_port = htons(5001);
+    srcaddr.sin_port = htons(4069);
 
     std::string tsam_ip = "130.208.246.98";
 
