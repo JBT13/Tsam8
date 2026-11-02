@@ -1,5 +1,44 @@
 # Tsam8
 
+## COMPILE AND RUN
+To compile both the client and the server, you should be in the TSAM SERVER
+and to run it you just write make
+
+Running the server
+./tsamserver <port>
+Example ./tsamserver 4044
+
+Running the client
+./tsamserver <server_ip><port>
+Example ./tsamclient 127.0.0.1 4044
+
+After type CONNECT,<Group_name>
+
+## Operating System
+This code was implemented for both Linux and Mac using poll()
+
+## Commands Implemented
+Client to Server: CONNECT,SENDMSG,GETMSG
+Server to Server: HELO,SERVERS,SENDMSG,KEEPALIVE,STATUSREQ,STATUSRESP,GETMSGS,ERROR
+
+## Server Behaviour
+Several Points are to be said about our server behaviour
+
+(Patience): if a message arrives for a group that our is server is not connect we dont discard it immediately, but we save it temporary until a route or a connection to that group becomes available, then we forward the store message/s
+
+(Message Relaying): if we get a message intended for another group, we act like a middle man and if we have connection we send it straight away otherwise we store temporarily until a direct connection opens up
+
+(Automatic Peer Discovery): We connect to other servers based on the SERVERS list and automatically try to establish connections with newly discovered groups of course up to the limit ammount of connections
+
+(Periodic Keepalives): Every 60s the server send a meesage to all the serves connected to ensure the we are connected and to let them know the amount of store messages we have for them
+
+(Status Polling and Retrieval): Every 60s the server sends a STATUSREQ to check what messages peer servers are holding for other groups and after receiving STATUSRESP if we find that another server is holding messages for us or a directly connected peer, it automatically triggers a GETMSGS to fetch them
+
+(Connection Limits and Safeguards): The server enforces strict connection to prevent system overload while reserving free slots to ensure new clients or peer can always connect succesfully
+
+(TSAM server connection): When we start the server automatically tries to connect to the Instructor server(TSAM server) to complete the helo and get the servers list to start connecting to other peers 
+
+## Point and Bonus Points
 
 ## 1(c)
 Our server successfully received messages addressed to our group and a client fetches it
@@ -144,3 +183,11 @@ I_tester: [I_instr2, G_christnik, G_hearts, G_ASA]
 Evidence in server.log: lines 23034-23080. Self entries and duplicates removed
 ### Observations
 Some servers appeared in all three maps, including I_instr1, I_instr2, G_kleina, G_christnik. Visible changes between the maps were that the first two maps included more student groups but the last map it was more instructures in the map. G_christnik advertised a large list of servers that also contained duplicates, while this helps advertise it's not reliable because of the duplicates. I_instr2 seemed to be an important hub since it gave a connection to the other instructure servers, for example I_dispatch, I_tester, I_registrar, I_gremlin. In the third map G_apple and G_EastBot also advertised many connections to groups. We did not find clear evidence that the botnet was split into seperate unreachable parts.
+
+## Authorship
+Server implementation: Sylvia
+Client implementation: Jeremias
+Logging, testing and evidence gathering: Sylvia
+
+Tools used:
+AI assistant for code debugging and structuring the code and organizing
