@@ -55,3 +55,55 @@
 [1793132793]RECEIVED: From: G_kiwi
 Message: ,TEST_ME
 [1793132956]Disconnected from server
+[1793181112]Connected to 127.0.0.1:4022
+[1793181128]RECEIVED: Successfully connected
+[1793181150]Disconnected from server
+[1793204094]Connected to 127.0.0.1:4022
+[1793204131]RECEIVED: HELO,G_GOATS
+[1793204131]RECEIVED: SERVERS,I_instr1,130.208.246.98,5001;G_swaws,130.208.246.98,4167;G_minions,130.208.246.98,4000;I_instr2,130.208.246.98,5002;G_G-Monster,130.208.246.98,4044;G_apple,130.208.246.98,4003;G_bachata,130.208.246.98,4099;G_banana,130.208.246.98,4088;G_GOATS,127.0.0.1,58624;
+[1793204145]Disconnected from server
+[1793204297]Connected to 127.0.0.1:4022
+[1793204320]RECEIVED: ERROR,Unknown command
+[1793204438]Disconnected from server
+[1793204444]Connected to 127.0.0.1:4022
+[1793204452]RECEIVED: Successfully connected
+[1793204502]Disconnected from server
+[1793204509]Connected to 127.0.0.1:4022
+[1793209546]Connected to 127.0.0.1:4022
+[1793209851]Connected to 127.0.0.1:4022
+[1793210080]Connected to 127.0.0.1:4022
+[1793210144]Connected to 127.0.0.1:4022
+[1793210563]Connected to 127.0.0.1:4022
+[1793210736]Connected to 127.0.0.1:4022
+[1793210741]RECEIVED: Successfully connected
+[1793210747]RECEIVED: SERVERS,G_GOATS,10.100.6.121,4022;I_instr1,130.208.246.98,5001;G_swaws,130.208.246.98,4167;G_minions,130.208.246.98,4000;I_instr2,130.208.246.98,5002;G_G,130.208.246.98,4067;I_dispatch,130.208.246.98,5010;I_tester,130.208.246.98,5009;
+[1793210777]RECEIVED: SENDMSG,I_dispatch,G_GOATS,1793210738,DISPATCH 0 2f815d7f3a6f6dc0 [Roll call] The League is taking a roll call of every station still on the air. Tell me who you can hear: name at least two servers your own server is connected to right now
+[1793210846]RECEIVED: ERROR,Unknown command
+[1793210888]RECEIVED: SENDMSG,I_dispatch,G_GOATS,1793210738,DISPATCH 4 7f8e101168adb054 [Full muster] The League wants to know what the network can carry at full strength. Reply while your server is holding at least five peers at once
+[1793210914]RECEIVED: SERVERS,G_GOATS,10.100.6.121,4022;I_instr1,130.208.246.98,5001;G_swaws,130.208.246.98,4167;G_minions,130.208.246.98,4000;G_G,130.208.246.98,4067;I_dispatch,130.208.246.98,5010;I_tester,130.208.246.98,5009;
+[1793210951]RECEIVED: SENDMSG
+[1793210975]Disconnected from server
+[1793212630]Connected to 127.0.0.1:4022
+[1793212636]RECEIVED: Successfully connected
+[1793212642]RECEIVED: SERVERS,G_GOATS,10.100.6.121,4022;I_instr1,130.208.246.98,5001;G_swaws,130.208.246.98,4167;G_minions,130.208.246.98,4000;I_instr2,130.208.246.98,5002;G_G,130.208.246.98,4067;G_G-Monster,130.208.246.98,4044;G_apple,130.208.246.98,4003;
+[1793212667]RECEIVED: SENDMSG
+[1793212754]Connected to 127.0.0.1:4022
+[1793212762]RECEIVED: Successfully connected
+[1793212765]RECEIVED: SERVERS,G_GOATS,10.100.6.121,4022;I_instr1,130.208.246.98,5001;G_swaws,130.208.246.98,4167;G_minions,130.208.246.98,4000;I_instr2,130.208.246.98,5002;G_G,130.208.246.98,4067;G_G-Monster,130.208.246.98,4044;G_apple,130.208.246.98,4003;
+[1793212770]RECEIVED: ERROR,requested user does not match connected user
+[1793212780]RECEIVED: SENDMSG,no messages
+[1793287512]Connected to 127.0.0.1:4022
+[1793287519]RECEIVED: Successfully connected
+[1793287526]RECEIVED: STATUSRESP
+[1793287532]RECEIVED: SERVERS,G_GOATS,192.168.1.5,4022;I_instr1,130.208.246.98,5001;G_swaws,130.208.246.98,4167;G_christnik,130.208.246.98,4144;I_instr2,130.208.246.98,5002;G_kleina,130.208.246.98,4092;G_portal,130.208.246.98,4100;G_apple,130.208.246.98,4003;
+[1793287558]RECEIVED: ERROR,requested user does not match connected user
+[1793287569]RECEIVED: SENDMSG,no messages
+[1793287602]RECEIVED: SENDMSG,no messages
+[1793291835]Connected to 127.0.0.1:4022
+[1793401341]Connected to 127.0.0.1:4060
+[1793401350]RECEIVED: Successfully connected
+[1793401395]RECEIVED: ERROR,invalid command for GETMSGS
+[1793401402]RECEIVED: SENDMSG,I_dispatch,G_GOATS,1793398291,DISPATCH 3 a6ca9e9594458073 [Nobody speaks at the door] The League's archive does not answer the door. It will not accept a connection from your server, and it has exactly one neighbour. If you want what it holds, your request has to arrive in somebody else's hands: send your REPLY to the archive rather than to me, and make it get there. Note that whoever carries it can read it -- that is the nature of this network, and worth thinking about. Reply to I_vault with: REPLY a6ca9e9594458073 <your answer>,I_dispatch,G_GOATS,1793401390,Not yet: arrived from 46.182.187.171, which we have seen them use before. The dispatch stands; you may try again.
+[1793401557]Disconnected from server
+[1793402170]Connected to 127.0.0.1:4010
+[1793402180]RECEIVED: Successfully connected
