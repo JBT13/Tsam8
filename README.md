@@ -18,7 +18,7 @@ After type CONNECT,<Group_name>
 This code was implemented for both Linux and Mac using poll()
 
 ## Commands Implemented
-Client to Server: CONNECT,SENDMSG,GETMSG
+Client to Server: CONNECT,SENDMSG,GETMSG,STATUSREQ,SERVERS
 Server to Server: HELO,SERVERS,SENDMSG,KEEPALIVE,STATUSREQ,STATUSRESP,GETMSGS,ERROR
 
 ## Server Behaviour
@@ -37,6 +37,9 @@ Several Points are to be said about our server behaviour
 (Connection Limits and Safeguards): The server enforces strict connection to prevent system overload while reserving free slots to ensure new clients or peer can always connect succesfully
 
 (TSAM server connection): When we start the server automatically tries to connect to the Instructor server(TSAM server) to complete the helo and get the servers list to start connecting to other peers 
+
+## Client Behaviour
+There exists only client for our group so its imposible for us to do impersonation/plagiarism 
 
 ## Point and Bonus Points
 
