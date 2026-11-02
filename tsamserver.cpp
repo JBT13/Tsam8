@@ -869,26 +869,32 @@ int main(int argc, char* argv[]){
             finished = true;
             break;
         }
-
+        // The limit is 7 here (vs 8 in accept) so we have always a free slot for someone to connect
         if (connections.size() < 7 && server_net.size() != 0){
+            // server_net maps a group to the list of peers that the group send to us
             for (const auto& [key, servers] : server_net){
                 for (const auto& neighbor: servers){
                     if (connections.size() >= 7){
-                        break;
+                        break; // connection limits
                     }
+
+                    // copy out the peer's details 
                     std::string group = neighbor.group;
                     std::string ip = neighbor.ip;
                     int port = std::stoi(neighbor.port);
                     bool connected = false;
+                    // check if we are connected to this peer by matching group_id or ip+port
                     for (const auto& [sock, server] : connections){
                         if ((ip == server.server_ip && port == server.server_port) || group == server.group_id){
                             connected = true;
                         }
                     }
 
+                    // skip peers we already connected to 
                     if (connected || group == GROUP_ID){
                         continue;
                     }
+
 
                     int sockfd = connect_to(port, ip);
                     if (sockfd < 0){
@@ -898,11 +904,14 @@ int main(int argc, char* argv[]){
                     else{
                         fds.push_back({sockfd, POLLIN, 0});
                         log_event("CONN", ip.c_str(), port, NULL, "connecting");
+
+                        //create connection entry group_id and type
                         connections[sockfd].socket = sockfd;
                         connections[sockfd].server_ip = ip;
                         connections[sockfd].server_port = port;
                         handshake[sockfd] = false;
                         log_note("Able to connect to %s", neighbor.group.c_str());
+                        //send helo to the server
                         send_helo(sockfd);
                     }
                 }
